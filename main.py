@@ -12,6 +12,12 @@ import glob
 
 # ── Parse GEDCOM ──────────────────────────────────────────────────────────────
 def parse_gedcom(path):
+    """
+    Reads a GEDCOM file and extracts individuals and families into structured dicts.
+    Returns:
+        indis: dict of individual ID → {id: str, name: str, sex: str, birth: str, birthPlace: str, death: str, deathPlace: str}
+        fams: dict of family ID → {id: str, husb: str, wife: str, children: list[str]}
+    """
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
 
@@ -67,6 +73,14 @@ def parse_gedcom(path):
 
 # ── Find direct ancestors only ────────────────────────────────────────────────
 def find_ancestors(indis, fams, root_id):
+    """
+    Given individuals and families dicts, find all direct ancestors of root_id.
+    Returns:
+        ancestors: set of person IDs who are direct ancestors of root_id
+        gen: dict of person ID → generation number (0=root, 1=parents, 2=grandparents, etc.)
+        couples: dict of family ID → {fid, husb, wife, child} for families linking an ancestor child to their parents
+        child_to_fam: dict mapping child ID → family ID they were born into
+    """
     # Map each child to the family they were born into
     child_to_fam = {}
     for fid, fam in fams.items():
@@ -110,6 +124,14 @@ def find_ancestors(indis, fams, root_id):
 
 # ── Build tree JSON for D3 ────────────────────────────────────────────────────
 def build_tree_data(indis, ancestors, gen, couples, root_id):
+    """Constructs the data structure for the family tree visualization.
+    Returns a dict with:
+    - rootId: the ID of the root ancestor
+    - nodes: list of {id, name, sex, birth, death, gen} for each ancestor
+    - links: list of {source: parentId, target: childId} for parent-children relationships
+    - spouseLinks: list of {source: personId, target: spouseId} for spouses within couples
+    - couples: list of {fid, husb, wife, child} for each couple linking an ancestor child to their parents
+    """
     nodes = [indis[pid] for pid in ancestors if pid in indis]
     for n in nodes:
         n["gen"] = gen.get(n["id"], 0)
@@ -143,6 +165,10 @@ def build_tree_data(indis, ancestors, gen, couples, root_id):
 
 # ── Generate HTML ─────────────────────────────────────────────────────────────
 def generate_html(data, out_path, n_total, root_ancestor):
+    """
+    Generates a self-contained HTML file with embedded data and D3.js visualization.
+    The HTML includes inline CSS and JavaScript to render the family tree interactively.
+    """
     data_json = json.dumps(data)
 
     html = f"""<!DOCTYPE html>
@@ -545,6 +571,12 @@ window.addEventListener('load', () => setTimeout(findRootAncestor, 50));
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
+    """
+    Main function to read GEDCOM, find ancestors, build data, and generate HTML.
+    Usage: python main.py [file.ged]
+    If no file is provided, it looks for the first .ged file in the current directory
+    and uses that. The output HTML is saved in the same directory with _tree.html suffix.
+    """
     ged_files = glob.glob("*.[Gg][Ee][Dd]")
     ged_file = (
         sys.argv[1] if len(sys.argv) > 1 else (ged_files[0] if ged_files else None)
